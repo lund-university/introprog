@@ -545,7 +545,7 @@ scala> given doubleComparator: CanCompare[Double] with
 \SubtaskSolved 
 \begin{REPL}
 scala> given stringComparator: CanCompare[String] with
-         override def compare(a: String, b: String): Int = (a.compareTo(b))
+         override def compare(a: String, b: String): Int = a.compareTo(b)
 \end{REPL}
 
 \QUESTEND
@@ -613,17 +613,79 @@ scala> isSorted(persons)
 
 \Subtask \emph{Importera implicita ordningsoperatorer från en \code{Ordering}.} Om man gör import på ett \code{Ordering}-objekt får man tillgång till implicita konverteringar som gör att jämförelseoperatorerna fungerar. Testa nedan variant av \code{isSorted} på olika sekvenstyper och verifiera att \code{<=}, \code{>}, etc., nu fungerar enligt nedan.
 \begin{CodeSmall}
-def isSorted[T](xs: Seq[T])(given ord: Ordering[T]): Boolean = {
-  import ord._
+def isSorted[T](xs: Seq[T])(using ord: Ordering[T]): Boolean =
+  import ord.*
   xs.zip(xs.tail).forall(x => x._1 <= x._2)
-}
 \end{CodeSmall}
 
 
 \SOLUTION
 
+\TaskSolved \what
 
-\TaskSolved \what --- \TODO
+\SubtaskSolved 
+Exempel på tester:
+\begin{REPLnonum}
+scala> isSorted(Vector(1,2,3))
+val res0: Boolean = true
+
+scala> isSorted(Vector(1,2,4,3))
+val res1: Boolean = false
+
+scala> isSorted(List(1,2,3))
+val res2: Boolean = true
+
+scala> isSorted(List(1,2,4,3))
+val res3: Boolean = false
+\end{REPLnonum}
+
+\SubtaskSolved 
+\begin{REPLnonum}
+scala> def isSorted[T](xs: Seq[T]): Boolean = xs == xs.sorted
+-- [E172] Type Error: --------------------------------------------------------------------------
+1 |def isSorted[T](xs: Seq[T]): Boolean = xs == xs.sorted
+  |                                                      ^
+  | No implicit Ordering defined for T..
+  | I found:
+  |
+  |     scala.math.Ordering.ordered[T](/* missing */summon[scala.math.Ordering.AsComparable[T]])
+  |
+  | But no implicit values were found that match type scala.math.Ordering.AsComparable[T].
+  |
+  | The following import might make progress towards fixing the problem:
+  |
+  |     import scala.math.Ordered.orderingToOrdered
+  |
+1 error found
+\end{REPLnonum}
+Felmeddelandet innebär att kompilatorn inte kan härleda en ordning för den generiska typen \code{T}.
+
+\SubtaskSolved 
+\begin{REPLnonum}
+scala> isSorted(persons)
+-- [E172] Type Error: ------------------------------------------------------------------------------------
+1 |isSorted(persons)
+  |                 ^
+  | No implicit Ordering defined for Person..
+  | I found:
+  |
+  |     scala.math.Ordering.ordered[Person](/* missing */summon[scala.math.Ordering.AsComparable[Person]])
+  |
+  | But no implicit values were found that match type scala.math.Ordering.AsComparable[Person].
+  |
+  | The following import might make progress towards fixing the problem:
+  |
+  |     import scala.math.Ordered.orderingToOrdered
+  |
+1 error found
+\end{REPLnonum}
+Felmeddelandet ges därför att kompilatorn inte känner till någon ordning för klassen \code{Person}. 
+
+\SubtaskSolved
+-
+
+\SubtaskSolved
+-
 
 \QUESTEND
 
@@ -685,16 +747,57 @@ scala> Team("fnatic",1499) < Team("gurka", 2)  // Inget fel? Varför?
 
 \SOLUTION
 
-
 \TaskSolved \what 
 
-\SubtaskSolved \TODO
+\SubtaskSolved
+\begin{REPLnonum}
+scala> xs.sorted
+-- [E172] Type Error: ---------------------------------------------------------------------------------------------------------------
+1 |xs.sorted
+  |         ^
+  | No implicit Ordering defined for Team..
+  | I found:
+  |
+  |     scala.math.Ordering.comparatorToOrdering[Team](/* missing */summon[java.util.Comparator[Team]])
+  |
+  | But no implicit values were found that match type java.util.Comparator[Team].
+  |
+  | One of the following imports might make progress towards fixing the problem:
+  |
+  |     import scala.math.Ordering.comparatorToOrdering
+  |     import scala.math.Ordering.ordered
+  |
+1 error found
+\end{REPLnonum}
+Felmeddelandet ges därför att kompilatorn inte känner till någon ordning för klassen \code{Team}. 
 
-\SubtaskSolved \TODO
+Efter tilldelningen \code{given Ordering[Team] = Ordering.by(t => t.rank)} existerar en given ordning för \code{Team} i den nuvarande kontexten. 
+Därför fungerar nu det efterföljande anropet \code{xs.sorted} som tänkt.
 
-\SubtaskSolved \TODO
+\SubtaskSolved 
+-
 
-\SubtaskSolved \TODO
+\SubtaskSolved
+-
+
+\SubtaskSolved
+\begin{REPLnonum}
+scala> Team("fnatic",1499) < Team("gurka", 2)
+-- [E008] Not Found Error: ------------------------------------------------------------
+1 |Team("fnatic",1499) < Team("gurka", 2)
+  |^^^^^^^^^^^^^^^^^^^^^
+  |value < is not a member of Team, but could be made available as an extension method.
+  |
+  |One of the following imports might fix the problem:
+  |
+  |  import scala.math.Ordered.orderingToOrdered
+  |  import scala.math.Ordering.Implicits.infixOrderingOps
+  |
+1 error found
+\end{REPLnonum}
+Precis som kompilatorn säger är \code{<} inte en metod definierad för \code{Team}.
+Däremot, efter \code{import Team.highestRankFirst.given} importeras även de implicita konverteringar som finns definierade för \code{highestRankFirst: Ordering[Team]} (eftersom det är ett objekt av typen \code{Ordering}).
+Därmed fungerar \code{<}. Se uppgift 7e för mer bakgrund.
 
 
 \QUESTEND
@@ -720,7 +823,7 @@ En trait som används på detta sätt kallas \textbf{gränssnitt} \Eng{interface
 case class Team(name: String, rank: Int) extends Ordered[Team]:
   override def compare(that: Team): Int = ???
 \end{Code}
-\emph{Tips:} Du kan anropa metoden \code{compare} på alla grundtyper, t.ex. \code{Int}, eftersom de implementerar gränssnittet \code{Oredered}. Genom att negera uttrycket blir ordningen den omvända. 
+\emph{Tips:} Du kan anropa metoden \code{compare} på alla grundtyper, t.ex. \code{Int}, eftersom de implementerar gränssnittet \code{Ordered}. Genom att negera uttrycket blir ordningen den omvända. 
 
 \begin{REPLnonum}
 scala> -(2.compare(1))
@@ -741,7 +844,7 @@ scala> Team("fnatic",1499) < Team("gurka", 2)
 \SubtaskSolved
 
 \begin{Code}
-case class  Team(name: String, rank: Int) extends Ordered[Team]:
+case class Team(name: String, rank: Int) extends Ordered[Team]:
   override def compare(that: Team): Int = -rank.compare(that.rank)
 \end{Code}
 
@@ -752,7 +855,19 @@ scala> Team("fnatic",1499) < Team("gurka", 2)
 val res1: Boolean = true
 \end{REPLnonum}
 
-\SubtaskSolved Ad hoc polymorfism är mer flexibel. \TODO{mer diskussion om likheter och skillnader här...}
+\SubtaskSolved
+Subtypspolymorfism, alltså användande av arv och gränssnitt \Eng{interface} bygger på att varje subtyp måste implementera vissa medlemmar. 
+Kompilatorn kan därmed garantera att \emph{något} kommer att ske vid anrop med en subtyp.
+Den kan däremot inte garantera \emph{vad} som kommer att ske. Detta avgörs på plats under körtid,
+så kallad dynamisk bindning.
+
+Ad hoc polymorfism å andra sidan bygger på att den anropade funktionen är definierad 
+så att den beter sig olika för olika typer. Till detta används någon form av typklasser.
+Det är alltså typen som ges vid anrop som avgör vad som sker, 
+inte vilket beteende som är definierat i den subtyp som typen ''råkar'' ha.
+Redan då koden kompileras kan alltså kompilatorn avgöra vad som kommer att ske baserat på
+typen, alltså statisk bindning. Detta innebär att det blir lättare att resonera om
+hur programmet beter sig.
 
 \QUESTEND
 
